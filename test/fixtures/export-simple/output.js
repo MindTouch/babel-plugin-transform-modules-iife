@@ -1,6 +1,6 @@
 this.Dog = this.Dog || {};
 
-this.Dog.Cat = function (_foo, _exports) {
+this.Dog.Cat = function (_exports, _foo) {
   "use strict";
   const bar = _foo.foo;
   _exports.bar = bar;

@@ -73,10 +73,12 @@ module.exports = declare((api, options) => {
 
                     const browserArgs = [];
                     const importNames = [];
-
                     const importExpression = buildImportNamespace();
-
                     const exportIdentifier = t.identifier(meta.exportName);
+
+                    if (withExports) {
+                        importNames.push(exportIdentifier);
+                    }
                     for (const [source, metadata] of meta.source) {
                         browserArgs.push(buildBrowserArg(source, importExpression));
                         importNames.push(t.identifier(metadata.name));
@@ -89,7 +91,6 @@ module.exports = declare((api, options) => {
                     let wrappedBody;
                     if (withExports) {
                         const [exportExpression, exportStatements] = buildExportNamespace();
-                        importNames.push(exportIdentifier);
                         for (let exportStatement of exportStatements) {
                             path.pushContainer('body', exportStatement);
                         }
