@@ -1,0 +1,19 @@
+{
+  "name": "babel-plugin-transform-modules-iife",
+  "version": "1.0.0",
+  "description": "Transform ES2015 modules to an IIFE format",
+  "main": "src/index.js",
+  "author": "Aaron Mars <mars.aaron@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@babel/helper-module-transforms": "^7.1.0",
+    "@babel/helper-plugin-utils": "^7.0.0"
+  },
+  "peerDependencies": {
+    "@babel/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.1.6",
+    "@babel/helper-plugin-test-runner": "^7.1.0"
+  }
+}
