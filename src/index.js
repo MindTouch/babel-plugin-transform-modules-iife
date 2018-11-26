@@ -4,12 +4,8 @@ const { isModule, rewriteModuleStatementsAndPrepareHeader, hasExports } = requir
 const { types: t, template } = require('@babel/core');
 
 const wrapper = template(`
-    GLOBAL_ASSIGNMENT = (function(IMPORT_NAMES) {
-    }({}, BROWSER_ARGUMENTS));
-`);
-const wrapperNoExports = template(`
     (function(IMPORT_NAMES) {
-    }(BROWSER_ARGUMENTS));
+    })(BROWSER_ARGUMENTS);
 `);
 
 module.exports = declare((api, options) => {
@@ -27,8 +23,7 @@ module.exports = declare((api, options) => {
     } = options;
 
     function buildExportNamespace() {
-        const members = exportNamespace.split('.');
-        const final = members.pop();
+        const members = exportNamespace ? exportNamespace.split('.') : [];
         let id = t.thisExpression();
         const statements = members.map(seg => {
             id = t.memberExpression(id, t.identifier(seg));
@@ -36,11 +31,11 @@ module.exports = declare((api, options) => {
                 t.assignmentExpression('=', id, t.logicalExpression('||', id, t.objectExpression([])))
             );
         });
-        return [t.memberExpression(id, t.identifier(final)), statements];
+        return { expression: id, statements };
     }
 
     function buildImportNamespace() {
-        const members = importNamespace.split('.');
+        const members = importNamespace ? importNamespace.split('.') : [];
         const ns = members.reduce((acc, current) => {
             return (acc = t.memberExpression(acc, t.identifier(current)));
         }, t.thisExpression());
@@ -69,48 +64,52 @@ module.exports = declare((api, options) => {
                         allowTopLevelThis,
                         noInterop
                     });
-                    const withExports = hasExports(meta);
 
-                    const browserArgs = [];
-                    const importNames = [];
+                    // The arguments of the outer, IIFE function
+                    const iifeArgs = [];
+
+                    // The corresponding arguments to the inner function called by the IIFE
+                    const innerArgs = [];
+
+                    // If exports are detected, set up the export namespace info
+                    let exportStatements = [];
+                    if (hasExports(meta)) {
+                        const exportNamespaceInfo = buildExportNamespace();
+                        exportStatements = exportNamespaceInfo.statements;
+                        iifeArgs.push(exportNamespaceInfo.expression);
+                        innerArgs.push(t.identifier(meta.exportName));
+                    }
+
+                    // Get the import namespace and build up the 2 sets of arguments based on the module's import statements
                     const importExpression = buildImportNamespace();
-                    const exportIdentifier = t.identifier(meta.exportName);
-
-                    if (withExports) {
-                        importNames.push(exportIdentifier);
-                    }
                     for (const [source, metadata] of meta.source) {
-                        browserArgs.push(buildBrowserArg(source, importExpression));
-                        importNames.push(t.identifier(metadata.name));
+                        iifeArgs.push(buildBrowserArg(source, importExpression));
+                        innerArgs.push(t.identifier(metadata.name));
                     }
 
+                    // Cache the module's body and directives and then clear them out so they can be wrapped with the IIFE
                     const { body, directives } = path.node;
                     path.node.directives = [];
                     path.node.body = [];
 
-                    let wrappedBody;
-                    if (withExports) {
-                        const [exportExpression, exportStatements] = buildExportNamespace();
-                        for (let exportStatement of exportStatements) {
-                            path.pushContainer('body', exportStatement);
-                        }
-                        wrappedBody = wrapper({
-                            GLOBAL_ASSIGNMENT: exportExpression,
-                            BROWSER_ARGUMENTS: browserArgs,
-                            IMPORT_NAMES: importNames
-                        });
-                    } else {
-                        wrappedBody = wrapperNoExports({ BROWSER_ARGUMENTS: browserArgs, IMPORT_NAMES: importNames });
-                    }
+                    // Get the iife wrapper Node
+                    const wrappedBody = wrapper({
+                        BROWSER_ARGUMENTS: iifeArgs,
+                        IMPORT_NAMES: innerArgs
+                    });
 
+                    // Re-build the path:
+                    //  - Add the statements that ensure the export namespace exists (if the module has exports)
+                    //  - Add the IIFE wrapper
+                    //  - Query the wrapper to get its body
+                    //  - Add the cached directives and original body to the IIFE wrapper
+                    for (let exportStatement of exportStatements) {
+                        path.pushContainer('body', exportStatement);
+                    }
                     const umdWrapper = path.pushContainer('body', [wrappedBody])[0];
-                    const bodyQuery = withExports ? 'expression.right.callee.body' : 'expression.callee.body';
-                    const umdFactory = umdWrapper.get(bodyQuery);
+                    const umdFactory = umdWrapper.get('expression.callee.body');
                     umdFactory.pushContainer('body', directives);
                     umdFactory.pushContainer('body', body);
-                    if (withExports) {
-                        umdFactory.pushContainer('body', t.returnStatement(exportIdentifier));
-                    }
                 }
             }
         }
