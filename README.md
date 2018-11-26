@@ -32,13 +32,13 @@ export const bar = foo;
 ### Out:
 ```javascript
 this.Dog = this.Dog || {};
+this.Dog.Cat = this.Dog.Cat || {};
 
-this.Dog.Cat = function (_foo, _exports) {
+(function (_exports, _foo) {
   "use strict";
   const bar = _foo.foo;
   _exports.bar = bar;
-  return _exports;
-}({}, this.Foo.Bar.dummyRootFoo);
+})(this.Dog.Cat, this.Foo.Bar.dummyRootFoo);
 ```
 
 ## Usage
